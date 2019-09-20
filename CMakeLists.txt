@@ -1,5 +1,13 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(crop_image_processing)
+#SET(“OpenCV_DIR” “/opt/ros/kinetic/share/OpenCV-3.3.1-dev”)
+#SET(“OpenCV_DIR “/usr/local/share/OpenCV”)
+#add_definitions(-D DEBUG GPU)
+SET(CUDA_VERSION 8.0)
+SET(OpenCV_DIR /usr/local/share/OpenCV)
+SET(LD_LIBRARY_PATH /usr/local/lib:$LD_LIBRARY_PATH)
+SET(CMAKE_PREFIX_PATH /usr/local:$CMAKE_PREFIX_PATH)
+SET(cv_bridge_DIR   /home/daniel/catkin_ws/devel/share/cv_bridge/cmake)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)#Importante habilitar esta opción
@@ -17,7 +25,12 @@ find_package(catkin REQUIRED COMPONENTS
   OpenCV
   geometry_msgs
 )
-
+#find_package(cv_bridge REQUIRED)
+#find_package(OpenCV 3 REQUIRED)
+#NO_MODULE # should be optional, tells CMake to use config mode
+#PATHS /usr/local # look here
+#NO_DEFAULT_PATH
+#)
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -75,7 +88,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate added messages and services with any dependencies listed here
  generate_messages(
    DEPENDENCIES
-   sensor_msgs std_msgs geometry_msgs crop_image_processing#   std_msgs
+   sensor_msgs std_msgs geometry_msgs crop_image_processing std_msgs
  )
 
 ################################################
@@ -110,7 +123,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES crop_image_processing
-  CATKIN_DEPENDS cv_bridge image_transport roscpp sensor_msgs std_msgs message_runtime #message_generation
+  CATKIN_DEPENDS image_transport roscpp sensor_msgs std_msgs message_runtime cv_bridge# message_generation
   DEPENDS system_lib
 )
 
@@ -121,7 +134,7 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+ include
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -141,6 +154,7 @@ include_directories(
 # add_executable(${PROJECT_NAME}_node src/crop_image_processing_node.cpp)
 add_executable(crop_image_converter src/image_converter.cpp)
 add_executable(crop_image_server src/crop_image_processor.cpp)
+add_executable(crop_image_converter_gpu src/image_converter_gpu.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -152,10 +166,12 @@ add_executable(crop_image_server src/crop_image_processor.cpp)
 ## same as for the library above
 add_dependencies(crop_image_converter ${catkin_EXPORTED_TARGETS})
 add_dependencies(crop_image_server ${catkin_EXPORTED_TARGETS})
+add_dependencies(crop_image_converter_gpu ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(crop_image_converter ${catkin_LIBRARIES})
 target_link_libraries(crop_image_server ${catkin_LIBRARIES})
+target_link_libraries(crop_image_converter_gpu ${catkin_LIBRARIES})
 
 
 #############

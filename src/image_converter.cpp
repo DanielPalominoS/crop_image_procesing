@@ -2,7 +2,7 @@
 #include <ros/ros.h>
 //#include  <ros/param.h>
 #include <image_transport/image_transport.h>
-#include <cv_bridge/cv_bridge.h>
+#include "cv_bridge/cv_bridge.h"
 #include <sensor_msgs/image_encodings.h>
 /*#include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>*/
@@ -12,6 +12,15 @@
 #include <geometry_msgs/Point.h>
 #include <crop_image_processing/Crop.h>
 #include <crop_image_processing/Image_point.h>
+
+#include "opencv2/core/utility.hpp"
+/*#include "opencv2/cudaimgproc.hpp"
+#include "opencv2/cudabgsegm.hpp"
+#include "opencv2/cudafeatures2d.hpp"
+#include "opencv2/cudafilters.hpp"
+#include "opencv2/cudawarping.hpp"
+#include <opencv2/cudaarithm.hpp>*/
+#include <opencv2/core/cuda.hpp>
 //#include <ros/rate.h>
 
 static const std::string LINES_WINDOW = "crop lines window";
@@ -88,12 +97,14 @@ public:
     /*if (cv_ptr->image.rows > 60 && cv_ptr->image.cols > 60)
       cv::circle(cv_ptr->image, cv::Point(10, 50), 10, CV_RGB(255,0,0));*/
 
-    cv::Mat gray_image;
+    cv::Mat gray_image,test4;
     cv::Mat edges;
     cv::Mat colorSeg;
     //cv::Mat contours;
     cv::Mat hsv;
     cv::Mat original;
+    //cv::cuda::GpuMat  test1,test2,test3;
+    //cv::cuda::CannyEdgeDetector()
     original=cv_ptr->image;
     /*************** Detect the rows based on HSV Range Values ***************/
     int h_green=120/2;//Los angulos estan divididos entre 2 para poder representarlos con un entero
@@ -101,6 +112,18 @@ public:
     int low_H=h_green-h_umbral, low_S=100, low_V=50,high_H=h_green+h_umbral, high_S=255, high_V=255;
     // Convert from BGR to HSV colorspace
     cv::cvtColor(cv_ptr->image, hsv, cv::COLOR_BGR2HSV);
+
+    /*test1.upload(cv_ptr->image);
+    test2.upload(cv_ptr->image);
+    cv::Ptr<cv::cuda::HoughSegmentDetector> hough = cv::cuda::createHoughSegmentDetector(1.0f, (float) (CV_PI / 180.0f), 50, 5);
+    cv::cuda::add(test1,test2,test3);
+
+    test3.download(test4);
+    test1.release();
+    test2.release();
+    test3.release();
+    test4.release();*/
+
     cv::inRange(hsv, cv::Scalar(low_H, low_S, low_V), cv::Scalar(high_H, high_S, high_V), colorSeg);
 
     // gray image
@@ -123,7 +146,6 @@ public:
     cv::Canny(colorSeg,edges,100,255,3);
 
     //cv::waitKey(3);*/
-
 
     /***************Skeleton***************/
     cv::Mat img;
@@ -181,7 +203,6 @@ public:
          //cv::line( probabilistic_hough, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255,0,0), 3, cv::LINE_AA);
          cv::line( original, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255,0,0), 3, cv::LINE_AA);
        }
-
     /*************** Find theta mode ***************/
     std::vector<float> theta;
     for (int i=0; i<lines.size(); i++){
@@ -225,6 +246,7 @@ public:
     /// Apply the specified morphology operation
     cv::Mat morpho_result_2,morpho_result_3;
     cv::morphologyEx( colorSeg, morpho_result_2, operation, element );
+    //cv::cuda::mor
     cv::dilate(colorSeg,morpho_result_2,element);
 
     morph_size = 3;
@@ -262,7 +284,6 @@ public:
     //for( int j = 0; j < 4; j++ ){
     //          cv::line( original, rect_Points[j], rect_Points[(j+1)%4], cv::Scalar(255,0,0), 1, 8 );
     //}
-
     //std::cout << "mode : " << mode << "\tcount mode : " << countMode<< "\tcontours : " << contours.at(max_area_index)<< "\tsequence : " << contours[max_area_index].size()<< std::endl;
     /*cv::Point* p=(cv::Point*) cv::getSeqElem(contours[max_area_index],1);
     std::cout << "x : " << p->x << "\ty : "<<p->y << std::endl;*/

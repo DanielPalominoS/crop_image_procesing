@@ -1,6 +1,7 @@
 bool    save
 string  storage_path
 string  name
+float64 gsd
 ---
 bool    success
 crop_image_processing/Crop crop

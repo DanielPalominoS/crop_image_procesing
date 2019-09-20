@@ -1,7 +1,7 @@
 #include "ros/ros.h"
 #include "beginner_tutorials/AddTwoInts.h"
 #include  <image_transport/image_transport.h>
-#include  <cv_bridge/cv_bridge.h>
+#include  "../../cv_bridge/include/cv_bridge/cv_bridge.h"
 #include  <sensor_msgs/image_encodings.h>
 /*#include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>*/
@@ -9,10 +9,10 @@
 #include  <opencv2/imgproc.hpp>
 #include  <opencv2/highgui.hpp>
 #include  <geometry_msgs/Point.h>
-#include  <hector_image_processing/crop.h>
+/*#include  <hector_image_processing/crop.h>
 #include  <hector_image_processing/image_point.h>
 #include  <hector_image_processing/find_crop_features.h>
-#include  <hector_image_processing/take_save_picture.h>
+#include  <hector_image_processing/take_save_picture.h>*/
 #include "crop_image_processor.h"
 
 class ImageConverter
@@ -75,10 +75,10 @@ public:
       return;
     }
 
-    cv::Mat gray_image;
+    /*cv::Mat gray_image;
     cv::Mat edges;
     cv::Mat colorSeg;
-    //cv::Mat contours;
+    //cv::Mat contours;*/
     cv::Mat hsv;
 
     original=cv_ptr->image;
