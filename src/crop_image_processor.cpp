@@ -130,6 +130,7 @@ bool crop_image_processor::findCropFeatures(crop_image_processing::Find_crop_fea
   hsv_mask(&original_gpu,&color_segmented_mask,low_H,low_S,low_V,high_H,high_S,high_V);
   skeleton(&color_segmented_mask,&skeleton_,gsd);
   hough_detec(&skeleton_,&p_lines,&lines,gsd,rho_res,theta_res,min_row_lenght);
+  std::cout<<"lines size"<<lines.size()<<std::endl;
   #else
   cv::Mat color_segmented_mask;
   cv::Mat skeleton_;
@@ -137,10 +138,24 @@ bool crop_image_processor::findCropFeatures(crop_image_processing::Find_crop_fea
   skeleton(&color_segmented_mask,&skeleton_,gsd);
   hough_detec(&skeleton_,&p_lines,&lines,gsd,rho_res,theta_res,min_row_lenght);
   #endif
+#ifdef DEBUG
+std::cout<<"Llego asign theta"<<std::endl;
+std::cout<<"Lines size"<<lines.size() <<std::endl;
+#endif
   for (int i=0; i<lines.size(); i++){
     theta.push_back((float)(lines[i][1]*180.0/((float)M_PI)));
   }
+#ifdef DEBUG
+std::cout<<"Salio asign theta"<<std::endl;
+#endif
+
+#ifdef DEBUG
+std::cout<<"Llego find mode"<<std::endl;
+#endif
   theta_mode=-mode(theta)+90;
+#ifdef DEBUG
+std::cout<<"Salio find mode"<<std::endl;
+#endif
   find_contour(&color_segmented_mask,&contour,&minRect,gsd);
   cv::Point2f rect_Points[4];
   minRect.points(rect_Points);
@@ -238,20 +253,10 @@ void crop_image_processor::skeleton(cv::Mat *src,cv::Mat *dst, double gsd ){
 void crop_image_processor::hough_detec(cv::Mat *src,std::vector<cv::Vec4i>* p_lines,
                  std::vector<cv::Vec2f>* lines, double gsd,double rho_res,
                  double theta_res,int min_row_lenght){
-    cv::Mat img;
-    cv::Mat img_co;
-    src->copyTo(img);
-    img.copyTo(img_co);
     //Depending on the gsd and min_row_lenght rows will be accepted
     int threshold=(int)(min_row_lenght/gsd);
-    //std::vector<cv::Vec2f> lines;
-    cv::HoughLines( img, *lines, rho_res, theta_res, threshold, 30, 10 );
-    //cv::HoughLines( img, l, rho_res, theta_res, 150, 30, 10 );
-    //cv::Mat probabilistic_hough;
-    //std::vector<cv::Vec4i> p_lines;
-    //cv::cvtColor( img, probabilistic_hough, cv::COLOR_GRAY2BGR );
-    cv::HoughLinesP( img_co, *p_lines, rho_res, theta_res, threshold, 30, 10 );
-
+    cv::HoughLines( *src, *lines, rho_res, theta_res, threshold, 30, 10 );
+    cv::HoughLinesP( *src, *p_lines, rho_res, theta_res, threshold, 30, 10 );
     return;
 }
 void  crop_image_processor::find_contour(cv::Mat *src,std::vector<cv::Point>* contour,cv::RotatedRect* minRect,double gsd){
@@ -300,6 +305,161 @@ void  crop_image_processor::find_contour(cv::Mat *src,std::vector<cv::Point>* co
   return;
 
 }
+
+
+
+/*****************************************************************************
+ *              GPU Functions                                                *
+ * **************************************************************************/
+void crop_image_processor::hsv_mask(cv::cuda::GpuMat *src,cv::cuda::GpuMat *dst ,int low_H,int low_S,int low_V,int high_H,int high_S,int high_V){
+    #ifdef DEBUG
+    std::cout<<"Entro hsv"<<std::endl;
+    #endif
+    cv::cuda::GpuMat hsv;
+    cv::cuda::cvtColor(*src, hsv, cv::COLOR_BGR2HSV);
+    cv::Mat hsv_cpu,temp;
+    hsv.download(hsv_cpu);
+    cv::inRange(hsv_cpu, cv::Scalar(low_H, low_S, low_V), cv::Scalar(high_H, high_S, high_V), temp);
+    dst->upload(temp);
+    #ifdef DEBUG
+    std::cout<<"Salio hsv"<<std::endl;
+    #endif
+    return;
+}
+void crop_image_processor::skeleton(cv::cuda::GpuMat *src,cv::cuda::GpuMat *dst, double gsd ){
+    #ifdef DEBUG
+    std::cout<<"Entro skel"<<std::endl;
+    #endif
+    cv::cuda::GpuMat img;
+    cv::cuda::threshold(*src, img, 127, 255, cv::THRESH_BINARY);
+    cv::cuda::GpuMat skel(img.size(), img.type(), cv::Scalar(0));
+    cv::cuda::GpuMat temp;
+    cv::cuda::GpuMat eroded;
+    int morph_size = 3;
+    cv::Mat element;
+    element = cv::getStructuringElement(cv::MORPH_CROSS, cv::Size(morph_size, morph_size));
+
+    bool done;
+    cv::Ptr<cv::cuda::Filter> filter1=cv::cuda::createMorphologyFilter(cv::MORPH_ERODE,
+                                                                            img.type(),element);
+    cv::Ptr<cv::cuda::Filter> filter2=cv::cuda::createMorphologyFilter(cv::MORPH_DILATE,
+                                                                            img.type(),element);
+    do
+    {
+      filter1->apply(img,eroded);
+      filter2->apply(eroded,temp);
+      cv::cuda::subtract(img, temp, temp);
+      cv::cuda::bitwise_or(skel, temp, skel);
+      eroded.copyTo(img);
+      done = (cv::cuda::countNonZero(img) == 0);
+    } while (!done);
+    skel.copyTo(*dst);
+    #ifdef DEBUG
+    std::cout<<"Llego skel "<<std::endl;
+    #endif
+    return;
+}
+void crop_image_processor::hough_detec(cv::cuda::GpuMat *src,std::vector<cv::Vec4i>* p_lines,
+                 std::vector<cv::Vec2f>* lines, double gsd,double rho_res,
+                 double theta_res,int min_row_lenght){
+    //cv::Mat img;
+    //src->copyTo(img);
+    //Depending on the gsd and min_row_lenght rows will be accepted
+    #ifdef DEBUG
+    std::cout<<"Entro hough det"<<std::endl;
+    #endif
+    int threshold=(int)(min_row_lenght/gsd);
+{
+    cv::cuda::GpuMat lines_gpu;
+    cv::Ptr<cv::cuda::HoughLinesDetector> hough=cv::cuda::createHoughLinesDetector(
+          1.0f,(float) (CV_PI/180.0f),150,true);
+    hough->detect(*src,lines_gpu);
+    if(!lines_gpu.empty()){
+      lines->resize(lines_gpu.cols);
+      cv::Mat temp_lines(1,lines_gpu.cols,CV_32FC2,&lines[0]);
+      lines_gpu.download(temp_lines);
+      temp_lines.release();
+    }
+    std::cout<<"lines gpu size"<<lines_gpu.size()<<std::endl;
+}
+{
+    cv::cuda::GpuMat  p_lines_gpu,img;
+    src->copyTo(img);
+    cv::Ptr<cv::cuda::HoughSegmentDetector> hough_p=cv::cuda::createHoughSegmentDetector(
+          1.0f,(float) (CV_PI/180.0f),30,5);
+    hough_p->detect(img,p_lines_gpu);
+    std::cout<<"lines size"<<lines->size()<<std::endl;
+    std::vector<cv::Vec4i> p_lines_vec;
+    if (!p_lines_gpu.empty())
+    {
+        /*p_lines->resize(p_lines_gpu.cols);
+        cv::Mat temp_lines1(1, p_lines_gpu.cols, CV_32SC4, &p_lines[0]);
+        p_lines_gpu.download(temp_lines1);*/
+
+        p_lines_vec.resize(p_lines_gpu.cols);
+        cv::Mat temp_lines1(1, p_lines_gpu.cols, CV_32SC4, &p_lines_vec[0]);
+        p_lines_gpu.download(temp_lines1);
+
+        std::cout<<"lines size"<<lines->size()<<std::endl;
+
+        *p_lines=p_lines_vec;
+        temp_lines1.release();
+    }
+}
+    std::cout<<"lines size"<<lines->size()<<std::endl;
+    #ifdef DEBUG
+    std::cout<<"Llego hough de"<<std::endl;
+    #endif
+    return;
+}
+void  crop_image_processor::find_contour(cv::cuda::GpuMat *src,std::vector<cv::Point>* contour,cv::RotatedRect* minRect,double gsd){
+    #ifdef DEBUG
+    std::cout<<"Entro find count"<<std::endl;
+    #endif
+  int morph_size;
+  int operation;
+  cv::Mat element,edges;
+  //cv::cuda::GpuMat img;
+  cv::cuda::GpuMat edges_gpu;
+  cv::cuda::GpuMat morpho_result_1,morpho_result_2;
+  std::vector<std::vector<cv::Point> > contours;
+  std::vector<cv::Vec4i> hierarchy;
+  /******* Apply morphologycal operations to increase birght areas (crop rows) *********/
+  //src->copyTo(img);
+  morph_size = 8;
+  operation=cv::MORPH_DILATE;
+  element = cv::getStructuringElement( cv::MORPH_RECT, cv::Size( 2*morph_size + 1, 2*morph_size+1 ), cv::Point( morph_size, morph_size ) );
+  cv::Ptr<cv::cuda::Filter> filter1=cv::cuda::createMorphologyFilter(operation,src->type(),element);
+  filter1->apply(*src,morpho_result_1);
+  morph_size = 3;
+  operation=cv::MORPH_CLOSE;
+  element= cv::getStructuringElement( cv::MORPH_RECT, cv::Size( 2*morph_size + 1, 2*morph_size+1 ), cv::Point( morph_size, morph_size ) );
+  filter1=cv::cuda::createMorphologyFilter(operation,src->type(),element);
+  filter1->apply(morpho_result_1,morpho_result_2);
+  /******* edge detection *********/
+  cv::Ptr<cv::cuda::CannyEdgeDetector> canny=cv::cuda::createCannyEdgeDetector(100,255,3);
+  canny->detect(morpho_result_2,edges_gpu);
+  edges_gpu.download(edges);
+  /******* find contours< *********/
+  cv::findContours(edges,contours,hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE, cv::Point(0, 0));
+  /******* find maximum area ********/
+  int max_area_index=0;
+  float area=0,max_area=0;
+  for( int i = 0; i< contours.size(); i++ )
+  {
+    area=cv::contourArea(contours[i]);
+    if (area>max_area){max_area_index=i;max_area=area;}
+  }
+  *contour=contours[max_area_index];
+  *minRect=cv::minAreaRect(cv::Mat(contours[max_area_index]));
+  return;
+    #ifdef DEBUG
+    std::cout<<"llego find counto "<<std::endl;
+    #endif
+
+}
+
+
 
 
 

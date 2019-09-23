@@ -199,7 +199,7 @@ cv::imshow(LINES_WINDOW, temp1);
       temp_lines.release();
     }
 
-
+std::cout<<"lines size"<<lines_gpu.size()<<std::endl;
     cv::Mat p_hough;
 
     cv::cuda::GpuMat  p_lines;
