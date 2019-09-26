@@ -220,19 +220,19 @@ public:
     long countMode = 1;
     for (int i=1; i<theta.size(); i++)
     {
-          if (theta[i] == number)
-          { // count occurrences of the current number
-             ++count;
-          }
-          else
-          { // now this is a different number
-                if (count > countMode)
-                {
-                      countMode = count; // mode is the biggest ocurrences
-                      mode = number;
-                }
-               count = 1; // reset count for the new number
-               number = theta[i];
+      if (theta[i] == number)
+      { // count occurrences of the current number
+         ++count;
+      }
+      else
+      { // now this is a different number
+            if (count > countMode)
+            {
+                  countMode = count; // mode is the biggest ocurrences
+                  mode = number;
+            }
+           count = 1; // reset count for the new number
+           number = theta[i];
       }
     }
 
@@ -272,12 +272,23 @@ public:
     int max_area_index=0;
     float area=0,max_area=0;
     for( int i = 0; i< contours.size(); i++ )
-             {
-               area=cv::contourArea(contours[i]);
-               if (area>max_area){max_area_index=i;max_area=area;}
-             }
+    {
+      area=cv::contourArea(contours[i]);
+      if (area>max_area){max_area_index=i;max_area=area;}
+    }
+    std::vector<cv::Point> contour_approx;
+    //Mat(contours0[k]), contours[k]
+    cv::approxPolyDP(cv::Mat(contours[max_area_index]),contour_approx,30,false);
+    std::cout<<"orig cont size: "<<contours[max_area_index].size()<<std::endl;
+    std::cout<<"approx cont size: "<<contour_approx.size()<<std::endl;
+    cv::line( original, contour_approx[contour_approx.size()-1], contour_approx[0], cv::Scalar(255,255,0), 1, 8 );
+    for( int i = 0; i < contour_approx.size()-1; i++ ){
+       cv::line( original, contour_approx[i], contour_approx[i+1], cv::Scalar(255,255,0), 1, 8 );
+    }
+
+
     minRect=cv::minAreaRect(cv::Mat(contours[max_area_index]));
-    cv::drawContours( original, contours, max_area_index, cv::Scalar(0,0,255), 6, 8, hierarchy, 3, cv::Point() );
+    //cv::drawContours( original, contours, max_area_index, cv::Scalar(0,0,255), 6, 8, hierarchy, 3, cv::Point() );
     cv::drawContours( draw, contours, max_area_index, cv::Scalar(0,0,255), 2, 8, hierarchy, 3, cv::Point() );
     cv::Point2f rect_Points[4];
     minRect.points(rect_Points);

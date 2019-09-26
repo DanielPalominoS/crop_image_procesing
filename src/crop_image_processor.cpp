@@ -108,7 +108,7 @@ bool crop_image_processor::findCropFeatures(crop_image_processing::Find_crop_fea
   cv::RotatedRect minRect;
   std::vector<cv::Point> contour;
   std::string file_name;
-
+  const int64 start = cv::getTickCount();
   double  theta_mode;
 
   double  gsd=req.gsd;// 0.08;
@@ -138,24 +138,24 @@ bool crop_image_processor::findCropFeatures(crop_image_processing::Find_crop_fea
   skeleton(&color_segmented_mask,&skeleton_,gsd);
   hough_detec(&skeleton_,&p_lines,&lines,gsd,rho_res,theta_res,min_row_lenght);
   #endif
-#ifdef DEBUG
-std::cout<<"Llego asign theta"<<std::endl;
-std::cout<<"Lines size"<<lines.size() <<std::endl;
-#endif
+  #ifdef DEBUG
+  std::cout<<"Llego asign theta"<<std::endl;
+  std::cout<<"Lines size"<<lines.size() <<std::endl;
+  #endif
   for (int i=0; i<lines.size(); i++){
     theta.push_back((float)(lines[i][1]*180.0/((float)M_PI)));
   }
-#ifdef DEBUG
-std::cout<<"Salio asign theta"<<std::endl;
-#endif
+  #ifdef DEBUG
+  std::cout<<"Salio asign theta"<<std::endl;
+  #endif
 
-#ifdef DEBUG
-std::cout<<"Llego find mode"<<std::endl;
-#endif
+  #ifdef DEBUG
+  std::cout<<"Llego find mode"<<std::endl;
+  #endif
   theta_mode=-mode(theta)+90;
-#ifdef DEBUG
-std::cout<<"Salio find mode"<<std::endl;
-#endif
+  #ifdef DEBUG
+  std::cout<<"Salio find mode"<<std::endl;
+  #endif
   find_contour(&color_segmented_mask,&contour,&minRect,gsd);
   cv::Point2f rect_Points[4];
   minRect.points(rect_Points);
@@ -171,8 +171,12 @@ std::cout<<"Salio find mode"<<std::endl;
          //cv::line( probabilistic_hough, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255,0,0), 3, cv::LINE_AA);
          cv::line( orig_copy, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255,0,0), 1, cv::LINE_AA);
        }
-    for( int j = 0; j < 4; j++ ){
+    /*for( int j = 0; j < 4; j++ ){
        cv::line( orig_copy, rect_Points[j], rect_Points[(j+1)%4], cv::Scalar(255,0,0), 1, 8 );
+    }*/
+    cv::line( orig_copy, contour[contour.size()-1], contour[0], cv::Scalar(255,255,0), 1, 8 );
+    for( int i = 0; i < contour.size()-1; i++ ){
+       cv::line( orig_copy, contour[i], contour[i+1], cv::Scalar(255,255,0), 1, 8 );
     }
 
     cv::imwrite(file_name,orig_copy);
@@ -185,7 +189,18 @@ std::cout<<"Salio find mode"<<std::endl;
   crop_feat.row_orientation=theta_mode;
 
   #ifndef FULL_COUNTOUR
-  crop_feat.contour.resize(4);
+  //crop_feat.contour.resize(contour.size());
+  //Se tiene en cuenta el contorno completo, en lugar del bounding box
+  for(int i=0;i<contour.size()-1;i++){
+    //geometry_msgs::Point coor;
+    crop_image_processing::Image_point coor;
+    coor.x=contour[i].x;
+    coor.y=contour[i].y;
+    //crop_feat.contour.at(i)=coor;
+    crop_feat.contour.push_back(coor);
+  }
+
+  /*crop_feat.contour.resize(4);
   //Modificar esto para trabajar el controno completo y no solo el bounding_box
   for(int i=0;i<4;i++){
     //geometry_msgs::Point coor;
@@ -193,7 +208,7 @@ std::cout<<"Salio find mode"<<std::endl;
     coor.x=rect_Points[i].x;
     coor.y=rect_Points[i].y;
     crop_feat.contour.at(i)=coor;
-  }
+  }*/
   #else
   crop_feat.contour.resize(contour.size());
   //Se tiene en cuenta el controno completo, en lugar del bounding box
@@ -211,6 +226,8 @@ std::cout<<"Salio find mode"<<std::endl;
   std::cout<<"crop coordinates: "<<rect_Points<<std::endl;
   std::cout<<"crop coordinates: "<<crop_feat<<std::endl;
   #endif
+  const double timeSec = (cv::getTickCount() - start) / cv::getTickFrequency();
+  std::cout << "CPU Time : " << timeSec * 1000 << " ms" << std::endl;
   res.success=true;
   return true;
 }
@@ -294,8 +311,9 @@ void  crop_image_processor::find_contour(cv::Mat *src,std::vector<cv::Point>* co
      area=cv::contourArea(contours[i]);
      if (area>max_area){max_area_index=i;max_area=area;}
    }
-
-  *contour=contours[max_area_index];
+  std::vector<cv::Point> contour_approx;
+  cv::approxPolyDP(cv::Mat(contours[max_area_index]),*contour,30,false);
+  //*contour=contours[max_area_index];
   *minRect=cv::minAreaRect(cv::Mat(contours[max_area_index]));
   /*draw=cv::Mat::zeros(edges.size(),CV_8UC3);
   cv::drawContours( original, contours, max_area_index, cv::Scalar(0,0,255), 2, 8, hierarchy, 3, cv::Point() );
@@ -450,7 +468,8 @@ void  crop_image_processor::find_contour(cv::cuda::GpuMat *src,std::vector<cv::P
     area=cv::contourArea(contours[i]);
     if (area>max_area){max_area_index=i;max_area=area;}
   }
-  *contour=contours[max_area_index];
+  cv::approxPolyDP(cv::Mat(contours[max_area_index]),*contour,15,false);
+  //*contour=contours[max_area_index];
   *minRect=cv::minAreaRect(cv::Mat(contours[max_area_index]));
   return;
     #ifdef DEBUG
