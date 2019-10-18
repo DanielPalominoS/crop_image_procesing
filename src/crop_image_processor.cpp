@@ -130,7 +130,7 @@ bool crop_image_processor::findCropFeatures(crop_image_processing::Find_crop_fea
   hsv_mask(&original_gpu,&color_segmented_mask,low_H,low_S,low_V,high_H,high_S,high_V);
   skeleton(&color_segmented_mask,&skeleton_,gsd);
   hough_detec(&skeleton_,&p_lines,&lines,gsd,rho_res,theta_res,min_row_lenght);
-  std::cout<<"lines size"<<lines.size()<<std::endl;
+  //std::cout<<"lines size"<<lines.size()<<std::endl;
   #else
   cv::Mat color_segmented_mask;
   cv::Mat skeleton_;
@@ -139,22 +139,22 @@ bool crop_image_processor::findCropFeatures(crop_image_processing::Find_crop_fea
   hough_detec(&skeleton_,&p_lines,&lines,gsd,rho_res,theta_res,min_row_lenght);
   #endif
   #ifdef DEBUG
-  std::cout<<"Llego asign theta"<<std::endl;
-  std::cout<<"Lines size"<<lines.size() <<std::endl;
+  //std::cout<<"Llego asign theta"<<std::endl;
+  //std::cout<<"Lines size"<<lines.size() <<std::endl;
   #endif
   for (int i=0; i<lines.size(); i++){
     theta.push_back((float)(lines[i][1]*180.0/((float)M_PI)));
   }
   #ifdef DEBUG
-  std::cout<<"Salio asign theta"<<std::endl;
+  //std::cout<<"Salio asign theta"<<std::endl;
   #endif
 
   #ifdef DEBUG
-  std::cout<<"Llego find mode"<<std::endl;
+  //std::cout<<"Llego find mode"<<std::endl;
   #endif
   theta_mode=-mode(theta)+90;
   #ifdef DEBUG
-  std::cout<<"Salio find mode"<<std::endl;
+  //std::cout<<"Salio find mode"<<std::endl;
   #endif
   find_contour(&color_segmented_mask,&contour,&minRect,gsd);
   cv::Point2f rect_Points[4];
@@ -183,7 +183,7 @@ bool crop_image_processor::findCropFeatures(crop_image_processing::Find_crop_fea
   }
 
   #ifdef DEBUG
-  std::cout<<"contour size :"<<contour.size()<<std::endl;
+  //std::cout<<"contour size :"<<contour.size()<<std::endl;
   #endif
   crop_image_processing::Crop crop_feat;
   crop_feat.row_orientation=theta_mode;
@@ -223,11 +223,17 @@ bool crop_image_processor::findCropFeatures(crop_image_processing::Find_crop_fea
   #endif
   res.crop=crop_feat;
   #ifdef DEBUG
-  std::cout<<"crop coordinates: "<<rect_Points<<std::endl;
-  std::cout<<"crop coordinates: "<<crop_feat<<std::endl;
+  //std::cout<<"crop coordinates: "<<rect_Points<<std::endl;
+  //std::cout<<"crop coordinates: "<<crop_feat<<std::endl;
   #endif
   const double timeSec = (cv::getTickCount() - start) / cv::getTickFrequency();
-  std::cout << "CPU Time : " << timeSec * 1000 << " ms" << std::endl;
+  #ifdef GPU
+  ROS_INFO_ONCE("GPU Time : \n");
+  std::cout <<timeSec * 1000 << " ms" << std::endl;
+  #else
+  ROS_INFO_ONCE("CPU Time : \n");
+  std::cout<< timeSec * 1000 << " ms" << std::endl;
+  #endif
   res.success=true;
   return true;
 }
@@ -331,7 +337,7 @@ void  crop_image_processor::find_contour(cv::Mat *src,std::vector<cv::Point>* co
  * **************************************************************************/
 void crop_image_processor::hsv_mask(cv::cuda::GpuMat *src,cv::cuda::GpuMat *dst ,int low_H,int low_S,int low_V,int high_H,int high_S,int high_V){
     #ifdef DEBUG
-    std::cout<<"Entro hsv"<<std::endl;
+    //std::cout<<"Entro hsv"<<std::endl;
     #endif
     cv::cuda::GpuMat hsv;
     cv::cuda::cvtColor(*src, hsv, cv::COLOR_BGR2HSV);
@@ -340,13 +346,13 @@ void crop_image_processor::hsv_mask(cv::cuda::GpuMat *src,cv::cuda::GpuMat *dst 
     cv::inRange(hsv_cpu, cv::Scalar(low_H, low_S, low_V), cv::Scalar(high_H, high_S, high_V), temp);
     dst->upload(temp);
     #ifdef DEBUG
-    std::cout<<"Salio hsv"<<std::endl;
+    //std::cout<<"Salio hsv"<<std::endl;
     #endif
     return;
 }
 void crop_image_processor::skeleton(cv::cuda::GpuMat *src,cv::cuda::GpuMat *dst, double gsd ){
     #ifdef DEBUG
-    std::cout<<"Entro skel"<<std::endl;
+    //std::cout<<"Entro skel"<<std::endl;
     #endif
     cv::cuda::GpuMat img;
     cv::cuda::threshold(*src, img, 127, 255, cv::THRESH_BINARY);
@@ -373,7 +379,7 @@ void crop_image_processor::skeleton(cv::cuda::GpuMat *src,cv::cuda::GpuMat *dst,
     } while (!done);
     skel.copyTo(*dst);
     #ifdef DEBUG
-    std::cout<<"Llego skel "<<std::endl;
+    //std::cout<<"Llego skel "<<std::endl;
     #endif
     return;
 }
@@ -384,55 +390,55 @@ void crop_image_processor::hough_detec(cv::cuda::GpuMat *src,std::vector<cv::Vec
     //src->copyTo(img);
     //Depending on the gsd and min_row_lenght rows will be accepted
     #ifdef DEBUG
-    std::cout<<"Entro hough det"<<std::endl;
+    //std::cout<<"Entro hough det"<<std::endl;
     #endif
     int threshold=(int)(min_row_lenght/gsd);
-{
-    cv::cuda::GpuMat lines_gpu;
-    cv::Ptr<cv::cuda::HoughLinesDetector> hough=cv::cuda::createHoughLinesDetector(
-          1.0f,(float) (CV_PI/180.0f),150,true);
-    hough->detect(*src,lines_gpu);
-    if(!lines_gpu.empty()){
-      lines->resize(lines_gpu.cols);
-      cv::Mat temp_lines(1,lines_gpu.cols,CV_32FC2,&lines[0]);
-      lines_gpu.download(temp_lines);
-      temp_lines.release();
-    }
-    std::cout<<"lines gpu size"<<lines_gpu.size()<<std::endl;
-}
-{
-    cv::cuda::GpuMat  p_lines_gpu,img;
-    src->copyTo(img);
-    cv::Ptr<cv::cuda::HoughSegmentDetector> hough_p=cv::cuda::createHoughSegmentDetector(
-          1.0f,(float) (CV_PI/180.0f),30,5);
-    hough_p->detect(img,p_lines_gpu);
-    std::cout<<"lines size"<<lines->size()<<std::endl;
-    std::vector<cv::Vec4i> p_lines_vec;
-    if (!p_lines_gpu.empty())
     {
-        /*p_lines->resize(p_lines_gpu.cols);
-        cv::Mat temp_lines1(1, p_lines_gpu.cols, CV_32SC4, &p_lines[0]);
-        p_lines_gpu.download(temp_lines1);*/
-
-        p_lines_vec.resize(p_lines_gpu.cols);
-        cv::Mat temp_lines1(1, p_lines_gpu.cols, CV_32SC4, &p_lines_vec[0]);
-        p_lines_gpu.download(temp_lines1);
-
-        std::cout<<"lines size"<<lines->size()<<std::endl;
-
-        *p_lines=p_lines_vec;
-        temp_lines1.release();
+        cv::cuda::GpuMat lines_gpu;
+        cv::Ptr<cv::cuda::HoughLinesDetector> hough=cv::cuda::createHoughLinesDetector(
+              1.0f,(float) (CV_PI/180.0f),150,true);
+        hough->detect(*src,lines_gpu);
+        if(!lines_gpu.empty()){
+          lines->resize(lines_gpu.cols);
+          cv::Mat temp_lines(1,lines_gpu.cols,CV_32FC2,&lines[0]);
+          lines_gpu.download(temp_lines);
+          temp_lines.release();
+        }
+        //std::cout<<"lines gpu size"<<lines_gpu.size()<<std::endl;
     }
-}
-    std::cout<<"lines size"<<lines->size()<<std::endl;
+    {
+        cv::cuda::GpuMat  p_lines_gpu,img;
+        src->copyTo(img);
+        cv::Ptr<cv::cuda::HoughSegmentDetector> hough_p=cv::cuda::createHoughSegmentDetector(
+              1.0f,(float) (CV_PI/180.0f),30,5);
+        hough_p->detect(img,p_lines_gpu);
+        //std::cout<<"lines size"<<lines->size()<<std::endl;
+        std::vector<cv::Vec4i> p_lines_vec;
+        if (!p_lines_gpu.empty())
+        {
+            /*p_lines->resize(p_lines_gpu.cols);
+            cv::Mat temp_lines1(1, p_lines_gpu.cols, CV_32SC4, &p_lines[0]);
+            p_lines_gpu.download(temp_lines1);*/
+
+            p_lines_vec.resize(p_lines_gpu.cols);
+            cv::Mat temp_lines1(1, p_lines_gpu.cols, CV_32SC4, &p_lines_vec[0]);
+            p_lines_gpu.download(temp_lines1);
+
+            //std::cout<<"lines size"<<lines->size()<<std::endl;
+
+            *p_lines=p_lines_vec;
+            temp_lines1.release();
+        }
+    }
+    //std::cout<<"lines size"<<lines->size()<<std::endl;
     #ifdef DEBUG
-    std::cout<<"Llego hough de"<<std::endl;
+    //std::cout<<"Llego hough de"<<std::endl;
     #endif
     return;
 }
 void  crop_image_processor::find_contour(cv::cuda::GpuMat *src,std::vector<cv::Point>* contour,cv::RotatedRect* minRect,double gsd){
     #ifdef DEBUG
-    std::cout<<"Entro find count"<<std::endl;
+    //std::cout<<"Entro find count"<<std::endl;
     #endif
   int morph_size;
   int operation;
@@ -472,10 +478,6 @@ void  crop_image_processor::find_contour(cv::cuda::GpuMat *src,std::vector<cv::P
   //*contour=contours[max_area_index];
   *minRect=cv::minAreaRect(cv::Mat(contours[max_area_index]));
   return;
-    #ifdef DEBUG
-    std::cout<<"llego find counto "<<std::endl;
-    #endif
-
 }
 
 
